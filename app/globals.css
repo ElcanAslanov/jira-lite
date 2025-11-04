@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* 🎨 Rəng Paleti */
+:root {
+  /* Light mode rənglər */
+  --background: #f9fafb;
+  --foreground: #1e1e1e; /* tam qara deyil, yumşaq tünd boz */
+  --card-bg: #ffffff;
+  --border: #e5e7eb;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --muted: #6b7280;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-poppins);
+}
+
+/* 🌙 Dark Mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    --foreground: #030b14; /* ağ yerinə açıq boz ton */
+    --card-bg: #1e293b;
+    --border: #334155;
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --muted: #94a3b8;
+  }
+}
+
+/* 🩶 Ümumi Stil */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), var(--font-poppins), system-ui, Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* --- Modern board stili --- */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.btn-modern {
+  @apply px-4 py-2 rounded-xl font-semibold transition-all duration-200 shadow-sm;
+}
+
+.btn-modern-primary {
+  @apply bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90;
+}
+
+.btn-modern-secondary {
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-700;
+}
+
+.sidebar-btn {
+  @apply text-left px-4 py-2 rounded-xl flex items-center gap-3 transition-all duration-200 text-black;
+}
+
+.sidebar-btn-active {
+  @apply bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium shadow-md;
+}
+
+.sidebar-btn:hover:not(.sidebar-btn-active) {
+  @apply bg-white/10 text-white;
+}
