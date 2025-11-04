@@ -73,3 +73,26 @@ body {
 .sidebar-btn:hover:not(.sidebar-btn-active) {
   @apply bg-white/10 text-white;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  button {
+    display: none !important;
+  }
+}
+

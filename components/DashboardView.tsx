@@ -8,6 +8,7 @@ import CompanyList from "./views/CompanyList";
 import DepartmentPage from "@/app/dashboard/departments/page";
 import RehberGroupsPage from "@/app/dashboard/rehber-groups/page";
 
+
 export default function DashboardView({ view }: any) {
   switch (view) {
     case "projects":
@@ -26,6 +27,7 @@ export default function DashboardView({ view }: any) {
     return <DepartmentPage />;
     case "rehberGroups":
   return <RehberGroupsPage />;
+
 
 
 

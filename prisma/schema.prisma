@@ -126,6 +126,8 @@ model Issue {
   comments      IssueComment[]
   labels        IssueLabel[]
   notifications Notification[]
+  dueDate     DateTime? // ✅ yeni əlavə
+  attachment  String?   // ✅ fayl URL-i
 }
 
 model IssueComment {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/jwt";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 
 // 🧩 Yeni Task yaratmaq
 export async function POST(req: Request) {
@@ -14,37 +16,49 @@ export async function POST(req: Request) {
     if (!decoded)
       return NextResponse.json({ error: "Token etibarsızdır" }, { status: 403 });
 
-    const {
-      projectId,
-      sprintId,
-      title,
-      description,
-      priority,
-      startDate,
-      endDate,
-      type,
-      assigneeId,
-    } = await req.json();
+    // 🧾 FormData alırıq (JSON yox!)
+    const form = await req.formData();
+
+    const title = form.get("title") as string;
+    const description = form.get("description") as string | null;
+    const priority = form.get("priority") as string | null;
+    const type = form.get("type") as string | null;
+    const projectId = form.get("projectId") as string | null;
+    const sprintId = form.get("sprintId") as string | null;
+    const assigneeId = form.get("assigneeId") as string | null;
+    const dueDate = form.get("dueDate") as string | null;
+    const file = form.get("file") as File | null;
 
     const reporterId = String((decoded as any).id);
 
+    // 📁 Fayl yükləmə
+    let attachmentUrl: string | null = null;
+    if (file) {
+      const uploadDir = path.join(process.cwd(), "public", "uploads");
+      await mkdir(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, file.name);
+      const buffer = Buffer.from(await file.arrayBuffer());
+      await writeFile(filePath, buffer);
+      attachmentUrl = `/uploads/${file.name}`;
+    }
+
     const issue = await prisma.issue.create({
       data: {
-        projectId,
-        sprintId,
         title,
         description,
-        priority,
+        projectId: projectId || undefined,
+        sprintId: sprintId || undefined,
+        priority: priority as any,
+        type: (type as any) || "TASK",
         reporterId,
-        assigneeId: assigneeId ? String(assigneeId) : reporterId, // ✅ hər iki tərəf String
-        type: type || "TASK",
+        assigneeId: assigneeId ? String(assigneeId) : reporterId,
         status: "TODO",
-        ...(startDate && { startDate: new Date(startDate) }),
-        ...(endDate && { endDate: new Date(endDate) }),
+        dueDate: dueDate ? new Date(dueDate) : null,
+        attachment: attachmentUrl,
       },
     });
 
-    // ✅ Bildiriş (assignee varsa)
+    // 🔔 Bildiriş
     if (issue.assigneeId) {
       await prisma.notification.create({
         data: {
@@ -74,7 +88,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Token etibarsızdır" }, { status: 403 });
 
   const userRole = (decoded as any).role;
-  const userId = String((decoded as any).id); // ✅ id-ni String-ə çeviririk
+  const userId = String((decoded as any).id);
 
   const whereCondition =
     userRole === "ADMIN"
@@ -94,12 +108,10 @@ export async function GET(req: Request) {
     orderBy: { createdAt: "desc" },
   });
 
-  console.log("🧩 userId:", userId, "issues:", issues.length);
-
   return NextResponse.json({ issues });
 }
 
-// 🔹 Mövcud task yenilənməsi (admin və assignee görə bilər)
+// 🔹 Task yenilənməsi
 export async function PATCH(req: Request) {
   try {
     const auth = req.headers.get("authorization");
@@ -111,14 +123,11 @@ export async function PATCH(req: Request) {
     if (!decoded)
       return NextResponse.json({ error: "Token etibarsızdır" }, { status: 403 });
 
-    const { id, status, priority } = await req.json();
+    const { id, status, priority, assigneeId } = await req.json();
     if (!id)
-      return NextResponse.json(
-        { error: "Task ID tələb olunur" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Task ID tələb olunur" }, { status: 400 });
 
-    const userId = String((decoded as any).id); // ✅ string çevrilməsi
+    const userId = String((decoded as any).id);
     const role = (decoded as any).role;
 
     const task = await prisma.issue.findUnique({ where: { id } });
@@ -130,7 +139,11 @@ export async function PATCH(req: Request) {
 
     const updated = await prisma.issue.update({
       where: { id },
-      data: { ...(status && { status }), ...(priority && { priority }) },
+      data: {
+        ...(status && { status }),
+        ...(priority && { priority }),
+        ...(assigneeId && { assigneeId }),
+      },
     });
 
     return NextResponse.json({ message: "Task yeniləndi ✅", updated });
@@ -139,3 +152,4 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Server xətası" }, { status: 500 });
   }
 }
+
