@@ -1,19 +1,49 @@
 "use client";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState, useEffect } from "react";
-import { X, Pencil, Printer, Clock, Link as LinkIcon } from "lucide-react";
+import { X, Printer, Clock, Link as LinkIcon } from "lucide-react";
 import toast from "react-hot-toast";
+import { jwtDecode } from "jwt-decode";
 
-export default function TaskDetailModal({ issue, token, onClose }: any) {
+export default function TaskDetailModal({ issue, token, onClose, onUpdated }: any) {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState(issue?.comments ?? []);
-  const [editMode, setEditMode] = useState(false);
   const [status, setStatus] = useState(issue?.status ?? "TODO");
   const [priority, setPriority] = useState(issue?.priority ?? "MEDIUM");
   const [assigneeId, setAssigneeId] = useState(issue?.assigneeId || "");
   const [users, setUsers] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
+  const [decoded, setDecoded] = useState<any>(null);
 
+  // ✅ Token decode — icazə və user ID tapmaq
+  useEffect(() => {
+    try {
+      const d: any = jwtDecode(token);
+      setDecoded(d);
+      if (
+        d.role === "ADMIN" ||
+        d.id === issue?.reporterId ||
+        d.id === issue?.assigneeId
+      ) {
+        setCanEdit(true);
+      } else {
+        setCanEdit(false);
+      }
+    } catch {
+      console.warn("Token decode edilə bilmədi ❌");
+    }
+  }, [token, issue]);
+
+  // ✅ Vaxt keçibsə tapşırıq dondurulsun
+  useEffect(() => {
+    if (issue?.dueDate) {
+      setIsExpired(new Date(issue.dueDate) < new Date());
+    }
+  }, [issue]);
+
+  // ✅ İstifadəçiləri yüklə
   useEffect(() => {
     async function loadUsers() {
       try {
@@ -29,6 +59,7 @@ export default function TaskDetailModal({ issue, token, onClose }: any) {
     if (token) loadUsers();
   }, [token]);
 
+  // ✅ Şərhləri yüklə
   useEffect(() => {
     async function loadComments() {
       if (!issue?.id) return;
@@ -41,6 +72,7 @@ export default function TaskDetailModal({ issue, token, onClose }: any) {
     loadComments();
   }, [issue, token]);
 
+  // ✅ Task yenilə və dərhal UI-da göstər
   async function saveChanges() {
     setSaving(true);
     const res = await fetch("/api/issues", {
@@ -56,85 +88,102 @@ export default function TaskDetailModal({ issue, token, onClose }: any) {
         assigneeId: assigneeId || null,
       }),
     });
+    const data = await res.json();
     setSaving(false);
+
     if (res.ok) {
-      setEditMode(false);
       toast.success("Tapşırıq yeniləndi ✅");
+      if (data.updated) {
+        issue.status = data.updated.status;
+        issue.priority = data.updated.priority;
+        setStatus(data.updated.status);
+        setPriority(data.updated.priority);
+      }
+      onUpdated?.(data.updated);
     } else {
-      toast.error("Tapşırıq yenilənmədi ❌");
+      toast.error(data.error || "Tapşırıq yenilənmədi ❌");
     }
   }
 
-  function handlePrint() {
-    const win = window.open("", "_blank", "width=800,height=600");
-    if (!win) return;
+ function handlePrint() {
+  if (!issue) return;
 
-    const createdAt = issue?.createdAt
-      ? new Date(issue.createdAt).toLocaleString("az-AZ")
-      : "—";
-    const dueDate = issue?.dueDate
-      ? new Date(issue.dueDate).toLocaleString("az-AZ")
-      : "—";
+  const createdAt = issue.createdAt
+    ? new Date(issue.createdAt).toLocaleString("az-AZ")
+    : "—";
+  const dueDate = issue.dueDate
+    ? new Date(issue.dueDate).toLocaleString("az-AZ")
+    : "—";
+  const assignee =
+    issue?.assignee?.name || issue?.assignee?.email || "—";
+  const project = issue?.project?.name || "—";
+  const description =
+    issue?.description?.trim() || "Açıqlama mövcud deyil.";
 
-    win.document.write(`
-      <html>
-        <head>
-          <title>${issue?.title || "Tapşırıq"}</title>
-          <style>
-            body { font-family: Inter, Arial, sans-serif; margin: 40px; color: #222; }
-            h1 { text-align: center; font-size: 24px; color: #333; margin-bottom: 10px; }
-            .divider { border-top: 2px solid #007bff; margin: 10px 0 20px; }
-            .section { margin-bottom: 20px; }
-            .label { font-weight: bold; color: #555; display:inline-block; width:160px; }
-            .value { color:#222; }
-            .comment { background:#f8f9fa; padding:10px; border-radius:6px; margin-bottom:8px; }
-            footer { text-align:center; font-size:12px; color:#777; margin-top:30px; }
-            a { color:#007bff; text-decoration:none; }
-          </style>
-        </head>
-        <body>
-          <h1>${issue?.title || "Tapşırıq hesabatı"}</h1>
-          <div class="divider"></div>
-          <div class="section">
-            <div><span class="label">Açıqlama:</span><span class="value">${issue?.description || "—"}</span></div>
-            <div><span class="label">Status:</span><span class="value">${status}</span></div>
-            <div><span class="label">Prioritet:</span><span class="value">${priority}</span></div>
-            <div><span class="label">Layihə:</span><span class="value">${issue?.project?.name || "—"}</span></div>
-            <div><span class="label">Təyin edilən:</span><span class="value">${issue?.assignee?.name || "—"}</span></div>
-            <div><span class="label">Bitmə tarixi:</span><span class="value">${dueDate}</span></div>
-            <div><span class="label">Əlavə sənəd:</span><span class="value">${
-              issue?.attachment
-                ? `<a href="${issue.attachment}" target="_blank">${issue.attachment.split("/").pop()}</a>`
-                : "—"
-            }</span></div>
-            <div><span class="label">Yaradılma tarixi:</span><span class="value">${createdAt}</span></div>
-          </div>
+  const printContent = `
+    <html>
+      <head>
+        <title>${issue.title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #111; }
+          h1 { font-size: 24px; color: #1f2937; margin-bottom: 10px; }
+          p, td { font-size: 14px; line-height: 1.6; }
+          .meta { margin-top: 20px; border-collapse: collapse; width: 100%; }
+          .meta td { border: 1px solid #ddd; padding: 8px; }
+          .meta tr:nth-child(even) { background-color: #f9f9f9; }
+          .meta tr:hover { background-color: #f1f1f1; }
+          .footer { margin-top: 30px; font-size: 12px; color: #6b7280; text-align: center; }
+          a { color: #2563eb; text-decoration: none; }
+          img.logo { height: 40px; margin-bottom: 10px; }
+        </style>
+      </head>
+      <body>
+      <img src="/Cahan-logo.jpg" class="logo" alt="Şirkət Loqosu" />
+
+        <h1>🧾 ${issue.title}</h1>
+        <p>${description}</p>
+
+        <table class="meta">
+          <tr><td><b>Status</b></td><td>${issue.status}</td></tr>
+          <tr><td><b>Prioritet</b></td><td>${issue.priority}</td></tr>
+          <tr><td><b>Layihə</b></td><td>${project}</td></tr>
+          <tr><td><b>Təyin edilən</b></td><td>${assignee}</td></tr>
+          <tr><td><b>Yaradılma tarixi</b></td><td>${createdAt}</td></tr>
+          <tr><td><b>Bitmə tarixi</b></td><td>${dueDate}</td></tr>
           ${
-            comments?.length
-              ? `<h3>💬 Şərhlər</h3>` +
-                comments
-                  .map(
-                    (c: any) =>
-                      `<div class="comment"><b>${
-                        c.author?.name || "İstifadəçi"
-                      }:</b> ${c.body}</div>`
-                  )
-                  .join("")
-              : `<p><i>Şərh yoxdur.</i></p>`
+            issue.attachment
+              ? `<tr><td><b>Əlavə sənəd</b></td><td><a href="${issue.attachment}" target="_blank">${issue.attachment
+                  .split("/")
+                  .pop()}</a></td></tr>`
+              : ""
           }
-          <footer>© ${new Date().getFullYear()} Task Management System</footer>
-          <script>window.onload=()=>{window.print();window.close();}</script>
-        </body>
-      </html>
-    `);
-    win.document.close();
-  }
+        </table>
+
+        <div class="footer">
+          <p>Bu sənəd ${new Date().toLocaleString(
+            "az-AZ"
+          )} tarixində sistem tərəfindən yaradılmışdır.</p>
+          <p>© ${new Date().getFullYear()} Task Manager System</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank", "width=850,height=700");
+  if (!win) return;
+  win.document.open();
+  win.document.write(printContent);
+  win.document.close();
+  win.print();
+}
+
 
   return (
     <Dialog.Root open={!!issue} onOpenChange={onClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl shadow-2xl w-[520px] max-h-[85vh] overflow-y-auto border border-gray-200">
+          {/* Header */}
           <div className="flex justify-between items-center mb-4">
             <Dialog.Title className="text-2xl font-semibold text-gray-800 flex items-center gap-2">
               🧾 {issue?.title ?? "Tapşırıq"}
@@ -158,44 +207,90 @@ export default function TaskDetailModal({ issue, token, onClose }: any) {
           {/* Məlumat hissəsi */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm">
             <p className="text-gray-700 leading-relaxed mb-3">
-              {issue?.description ?? (
-                <span className="text-gray-400 italic">
-                  Açıqlama mövcud deyil.
-                </span>
+              {issue?.description || (
+                <span className="text-gray-400 italic">Açıqlama mövcud deyil.</span>
               )}
             </p>
 
             <div className="grid grid-cols-2 gap-2 text-sm">
+              {/* STATUS */}
               <div>
                 <b>Status:</b>{" "}
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs ${
-                    status === "DONE"
-                      ? "bg-green-100 text-green-700"
-                      : status === "IN_PROGRESS"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {status}
-                </span>
+                {canEdit ? (
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    disabled={
+                      isExpired && decoded?.id === issue?.assigneeId && decoded?.role !== "ADMIN"
+                    }
+                    className={`border rounded-md px-2 py-1 text-sm bg-white ${
+                      isExpired && decoded?.id === issue?.assigneeId
+                        ? "cursor-not-allowed opacity-70"
+                        : ""
+                    }`}
+                    title={
+                      isExpired && decoded?.id === issue?.assigneeId
+                        ? "Tapşırığın bitmə vaxtı keçib, dəyişiklik icazəniz yoxdur."
+                        : ""
+                    }
+                  >
+                    <option value="TODO">TODO</option>
+                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                    <option value="DONE">DONE</option>
+                  </select>
+                ) : (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs ${
+                      status === "DONE"
+                        ? "bg-green-100 text-green-700"
+                        : status === "IN_PROGRESS"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {status}
+                  </span>
+                )}
               </div>
+
+              {/* PRIORITY */}
               <div>
                 <b>Prioritet:</b>{" "}
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs ${
-                    priority === "CRITICAL"
-                      ? "bg-red-100 text-red-700"
-                      : priority === "HIGH"
-                      ? "bg-orange-100 text-orange-700"
-                      : priority === "LOW"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {priority}
-                </span>
+                {canEdit ? (
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    disabled={
+                      isExpired && decoded?.id === issue?.assigneeId && decoded?.role !== "ADMIN"
+                    }
+                    className={`border rounded-md px-2 py-1 text-sm bg-white ${
+                      isExpired && decoded?.id === issue?.assigneeId
+                        ? "cursor-not-allowed opacity-70"
+                        : ""
+                    }`}
+                  >
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                ) : (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs ${
+                      priority === "CRITICAL"
+                        ? "bg-red-100 text-red-700"
+                        : priority === "HIGH"
+                        ? "bg-orange-100 text-orange-700"
+                        : priority === "LOW"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {priority}
+                  </span>
+                )}
               </div>
+
               <div>
                 <b>Layihə:</b> {issue?.project?.name ?? "—"}
               </div>
@@ -204,7 +299,6 @@ export default function TaskDetailModal({ issue, token, onClose }: any) {
                 {issue?.assignee?.name || issue?.assignee?.email || "—"}
               </div>
 
-              {/* 🕓 Bitmə tarixi */}
               <div className="flex items-center gap-1 col-span-2">
                 <Clock className="w-4 h-4 text-gray-500" />
                 <b>Bitmə tarixi:</b>{" "}
@@ -213,62 +307,66 @@ export default function TaskDetailModal({ issue, token, onClose }: any) {
                   : "—"}
               </div>
 
-              
-{/* 📎 Əlavə sənəd */}
-<div className="flex items-center gap-1 col-span-2">
-  <LinkIcon className="w-4 h-4 text-gray-500" />
-  <b>Əlavə sənəd:</b>{" "}
-  {issue?.attachment ? (
-    <div className="flex items-center gap-3">
-      {/* Fayl adı */}
-      <a
-        href={issue.attachment}
-        target="_blank"
-        className="text-blue-600 hover:text-blue-800 underline text-sm flex items-center gap-1"
-      >
-        {issue.attachment.split("/").pop()}
-      </a>
-
-      {/* Yükləmə düyməsi */}
-      <button
-        onClick={() => {
-          const link = document.createElement("a");
-          link.href = issue.attachment!;
-          link.download = issue.attachment.split("/").pop()!;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }}
-        className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-all active:scale-95 shadow-sm"
-        title="Faylı yüklə"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-3.5 w-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"
-          />
-        </svg>
-        Yüklə
-      </button>
-    </div>
-  ) : (
-    <span className="text-gray-400 italic">—</span>
-  )}
-</div>
-
-
+              {/* 📎 Əlavə sənəd */}
+              <div className="flex items-center gap-1 col-span-2">
+                <LinkIcon className="w-4 h-4 text-gray-500" />
+                <b>Əlavə sənəd:</b>{" "}
+                {issue?.attachment ? (
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={issue.attachment}
+                      target="_blank"
+                      className="text-blue-600 hover:text-blue-800 underline text-sm flex items-center gap-1"
+                    >
+                      {issue.attachment.split("/").pop()}
+                    </a>
+                    <button
+                      onClick={() => {
+                        const link = document.createElement("a");
+                        link.href = issue.attachment!;
+                        link.download = issue.attachment.split("/").pop()!;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-md transition-all active:scale-95 shadow-sm"
+                      title="Faylı yüklə"
+                    >
+                      ⬇ Yüklə
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-gray-400 italic">—</span>
+                )}
+              </div>
             </div>
+
+            {/* ✅ Yenilə düyməsi */}
+            {canEdit && (
+              <button
+                onClick={saveChanges}
+                disabled={
+                  saving || (isExpired && decoded?.id === issue?.assigneeId && decoded?.role !== "ADMIN")
+                }
+                title={
+                  isExpired && decoded?.id === issue?.assigneeId
+                    ? "Tapşırığın bitmə vaxtı keçib, dəyişiklik edə bilməzsiniz."
+                    : ""
+                }
+                className={`mt-4 px-4 py-2 rounded-md text-sm font-medium text-white ${
+                  saving
+                    ? "bg-gray-400"
+                    : isExpired && decoded?.id === issue?.assigneeId
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700 active:scale-95 transition"
+                }`}
+              >
+                {saving ? "Yenilənir..." : "Yenilə ✅"}
+              </button>
+            )}
           </div>
 
-          {/* Şərhlər */}
+          {/* 💬 Şərhlər */}
           <div>
             <h3 className="font-semibold text-gray-800 mb-2">💬 Şərhlər</h3>
             {comments.length ? (

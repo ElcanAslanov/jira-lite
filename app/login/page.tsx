@@ -2,9 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-
 import { useEffect } from "react";
-
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,15 +23,26 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("role", data.user.role); // 🔹 rolu da saxlayırıq
-        localStorage.setItem("userId", data.user.id);
+    if (res.ok) {
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("role", data.user.role);
+  localStorage.setItem("userId", data.user.id);
 
-        toast.success("Giriş uğurlu ✅");
-        window.location.href = "/dashboard";
-      }
-    else {
+  // 🔹 View-u sıfırla
+  localStorage.removeItem("dashboard_active_view");
+
+  toast.success("Giriş uğurlu ✅");
+
+  // ✅ Rol əsasında yönləndirmə
+if (data.user.role === "ADMIN") {
+  localStorage.setItem("dashboard_active_view", "projects");
+} else {
+  localStorage.setItem("dashboard_active_view", "tasks");
+}
+window.location.href = "/dashboard";
+
+}
+ else {
         toast.error(data.message || "Yanlış email və ya şifrə ❌");
       }
     } catch {
@@ -42,7 +51,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
-  
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-600 to-indigo-800">
@@ -88,13 +96,6 @@ export default function LoginPage() {
             {loading ? "Daxil olunur..." : "Daxil ol"}
           </button>
         </form>
-
-        {/* <p className="text-sm text-gray-500 text-center mt-4">
-          Hesabın yoxdur?{" "}
-          <a href="/register" className="text-blue-600 hover:underline">
-            Qeydiyyatdan keç
-          </a>
-        </p> */}
       </div>
     </div>
   );

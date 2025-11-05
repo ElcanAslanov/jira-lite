@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!decoded)
       return NextResponse.json({ error: "Token etibarsızdır" }, { status: 403 });
 
-    // 🧾 FormData alırıq (JSON yox!)
+    // 🧾 FormData alırıq (JSON yox!).
     const form = await req.formData();
 
     const title = form.get("title") as string;
@@ -111,7 +111,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ issues });
 }
 
-// 🔹 Task yenilənməsi
+// 🔹 Task yenilənməsi (dəyişikliklər burada)
 export async function PATCH(req: Request) {
   try {
     const auth = req.headers.get("authorization");
@@ -130,13 +130,34 @@ export async function PATCH(req: Request) {
     const userId = String((decoded as any).id);
     const role = (decoded as any).role;
 
+    // ✅ Task-ı tapırıq
     const task = await prisma.issue.findUnique({ where: { id } });
     if (!task)
       return NextResponse.json({ error: "Task tapılmadı" }, { status: 404 });
 
-    if (role !== "ADMIN" && task.assigneeId !== userId)
-      return NextResponse.json({ error: "İcazə yoxdur" }, { status: 403 });
+    // ⏳ Əgər tapşırığın vaxtı keçibsə və istifadəçi assignee-dirsə → blokla
+    if (task.dueDate && new Date() > new Date(task.dueDate)) {
+      if (task.assigneeId === userId && role !== "ADMIN") {
+        return NextResponse.json(
+          { error: "Tapşırığın bitmə vaxtı keçib. Dəyişiklik icazəniz yoxdur. ❌" },
+          { status: 403 }
+        );
+      }
+    }
 
+    // ✅ İcazə yoxlaması:
+    const isAllowed =
+      role === "ADMIN" ||
+      task.reporterId === userId ||
+      task.assigneeId === userId;
+
+    if (!isAllowed)
+      return NextResponse.json(
+        { error: "Bu tapşırığı yeniləmək icazən yoxdur" },
+        { status: 403 }
+      );
+
+    // ✅ Yeniləmə
     const updated = await prisma.issue.update({
       where: { id },
       data: {
@@ -152,4 +173,3 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Server xətası" }, { status: 500 });
   }
 }
-

@@ -10,8 +10,8 @@ datasource db {
 enum GlobalRole {
   ADMIN
   USER
-  REHBER // ✅ Yeni əlavə
-  ISCI // ✅ Yeni əlavə
+  REHBER
+  ISCI
 }
 
 enum IssueType {
@@ -46,7 +46,7 @@ model User {
   passwordHash  String
   role          GlobalRole      @default(USER)
   departmentId  String?
-  department    Department?     @relation(fields: [departmentId], references: [id])
+  department    Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   projects      Project[]       @relation("OwnerProjects")
   memberships   ProjectMember[]
   assignedTasks Issue[]         @relation("AssignedTasks")
@@ -57,11 +57,11 @@ model User {
   lastLogin     DateTime?       @default(now())
 
   // 🔹 Öz-özünə əlaqə — rəhbər və işçilər üçün
-  rehberId     String? // bu istifadəçinin rəhbərinin ID-si
-  rehber       User?   @relation("UserRehber", fields: [rehberId], references: [id])
-  subordinates User[]  @relation("UserRehber") // rəhbərin işçiləri (əks əlaqə)
+  rehberId     String?
+  rehber       User?   @relation("UserRehber", fields: [rehberId], references: [id], onDelete: SetNull)
+  subordinates User[]  @relation("UserRehber")
 
-  // 🔹 RehberGroup əlaqəsi (səndə artıq var)
+  // 🔹 RehberGroup əlaqəsi
   rehberGroups RehberGroup[] @relation("UserRehberGroups")
 }
 
@@ -70,7 +70,7 @@ model Project {
   name        String
   key         String          @unique
   description String?
-  owner       User            @relation("OwnerProjects", fields: [ownerId], references: [id])
+  owner       User            @relation("OwnerProjects", fields: [ownerId], references: [id], onDelete: Cascade)
   ownerId     String
   members     ProjectMember[]
   sprints     Sprint[]
@@ -81,9 +81,9 @@ model Project {
 
 model ProjectMember {
   id        String      @id @default(cuid())
-  project   Project     @relation(fields: [projectId], references: [id])
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId String
-  user      User        @relation(fields: [userId], references: [id])
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   role      ProjectRole @default(MEMBER)
 
@@ -92,7 +92,7 @@ model ProjectMember {
 
 model Sprint {
   id        String   @id @default(cuid())
-  project   Project  @relation(fields: [projectId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId String
   name      String
   startDate DateTime
@@ -117,17 +117,17 @@ model Issue {
   startDate   DateTime?
   endDate     DateTime?
 
-  project Project? @relation(fields: [projectId], references: [id])
-  sprint  Sprint?  @relation(fields: [sprintId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint  Sprint?  @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 
-  assignee User? @relation("AssignedTasks", fields: [assigneeId], references: [id]) // ✅ eyni ad
-  reporter User? @relation("ReportedTasks", fields: [reporterId], references: [id]) // ✅ eyni ad
+  assignee User? @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  reporter User? @relation("ReportedTasks", fields: [reporterId], references: [id], onDelete: SetNull)
 
   comments      IssueComment[]
   labels        IssueLabel[]
   notifications Notification[]
-  dueDate     DateTime? // ✅ yeni əlavə
-  attachment  String?   // ✅ fayl URL-i
+  dueDate       DateTime?
+  attachment    String?
 }
 
 model IssueComment {
@@ -137,8 +137,8 @@ model IssueComment {
   body      String
   createdAt DateTime @default(now())
 
-  issue  Issue @relation(fields: [issueId], references: [id])
-  author User  @relation(fields: [authorId], references: [id])
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model Label {
@@ -147,7 +147,7 @@ model Label {
   name      String
   color     String
 
-  project Project      @relation(fields: [projectId], references: [id])
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues  IssueLabel[]
 
   @@unique([projectId, name])
@@ -157,8 +157,8 @@ model IssueLabel {
   issueId String
   labelId String
 
-  issue Issue @relation(fields: [issueId], references: [id])
-  label Label @relation(fields: [labelId], references: [id])
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([issueId, labelId])
 }
@@ -167,35 +167,33 @@ model Notification {
   id        String   @id @default(cuid())
   message   String
   createdAt DateTime @default(now())
-  isRead    Boolean  @default(false) // ✅ bu sətri əlavə et
+  isRead    Boolean  @default(false)
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   issueId   String?
-  issue     Issue?   @relation(fields: [issueId], references: [id])
+  issue     Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
 }
 
 model Company {
   id          String       @id @default(cuid())
   name        String
   logoUrl     String?
-  departments Department[] // ✅ Əlavə et
+  departments Department[]
 }
 
 model Department {
   id           String        @id @default(cuid())
   name         String
   companyId    String
-  company      Company       @relation(fields: [companyId], references: [id])
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   rehberGroups RehberGroup[]
-  users        User[] // ✅ Əlavə et (əlaqənin qarşı tərəfi)
+  users        User[]
 }
 
 model RehberGroup {
   id           String     @id @default(cuid())
-  name         String // ✅ bu sətir əlavə olunur
+  name         String
   departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
-
-  // Əgər səndə user əlaqəsi varsa, onu saxla:
-  users User[] @relation("UserRehberGroups")
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  users        User[]     @relation("UserRehberGroups")
 }
