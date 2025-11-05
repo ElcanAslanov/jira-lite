@@ -14,20 +14,35 @@ export async function GET() {
       orderBy: { name: "asc" },
     });
 
-    // hər rəhbərin alt işçilərini gətir
+    // 🔸 hər rəhbərin alt işçilərini gətir
     const rehberWithWorkers = await Promise.all(
-      rehbers.map(async (r) => {
+      rehbers.map(async (r: { id: string; departmentId: string | null }) => {
         const workers = await prisma.user.findMany({
-          where: { role: "ISCI", departmentId: r.departmentId },
-          select: { id: true, name: true, email: true, phone: true },
+          where: {
+            role: "ISCI",
+            departmentId: r.departmentId ?? undefined,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
         });
-        return { ...r, workers };
+
+        return {
+          ...r,
+          workers,
+        };
       })
     );
 
     return NextResponse.json({ rehbers: rehberWithWorkers });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Struktur yüklənmədi" }, { status: 500 });
+    console.error("GET /rehber-structure error:", err);
+    return NextResponse.json(
+      { error: "Struktur yüklənmədi ❌" },
+      { status: 500 }
+    );
   }
 }
