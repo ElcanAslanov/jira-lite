@@ -127,8 +127,8 @@ model Issue {
   comments      IssueComment[]
   labels        IssueLabel[]
   notifications Notification[]
-  dueDate       DateTime?
-  attachment    String?
+  dueDate     DateTime?
+  attachment  String?
 }
 
 model IssueComment {
@@ -196,5 +196,5 @@ model RehberGroup {
   name         String
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  users        User[]     @relation("UserRehberGroups")
+  users        User[] @relation("UserRehberGroups")
 }
